@@ -47,7 +47,6 @@ config.py
 .env
 .env.local
 *.secret
-config.json
 
 # Temporary files
 *.tmp

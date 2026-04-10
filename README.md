@@ -13,6 +13,10 @@
 4. 调用本地 Ollama 的 POST 接口翻译
 5. 将译文粘贴回输入框（并发送）
 
+<video controls width="640" height="360">
+  <source src="./example.mp4" type="video/mp4">
+  你的浏览器不支持视频标签。
+</video>
 
 ## 运行
 
