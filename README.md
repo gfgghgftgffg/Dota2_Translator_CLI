@@ -16,7 +16,44 @@
 
 ## 运行
 
-conda配置一下运行即可
+1.conda配置一下
+2.新建一个config.json,需要的自行修改
+```
+{
+  "hotkeys": {
+    "trigger": "f12",
+    "toggle": "ctrl+alt+f12"
+  },
+  "translation": {
+    "cooldown": 0.2,
+    "source_lang": "zh-CN",
+    "target_lang": "en",
+    "mode": 1
+  },
+  "window_filter": {
+    "enabled": false,
+    "title_keywords": [
+      "dota 2"
+    ]
+  },
+  "ollama": {
+    "host": "10.244.0.2",
+    "port": 11434,
+    "endpoint": "/api/generate",
+    "model": "qwen3.5:4b",
+    "timeout": 30,
+    "think": false,
+    "options": {
+      "temperature": 0.8
+    }
+  },
+  "prompt": {
+    "file": "prompts/zh_to_en_prompt.txt",
+    "user_text_placeholder": "{{text}}"
+  }
+}
+
+```
 
 ## 配置文件
 
