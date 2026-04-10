@@ -4,7 +4,7 @@
 
 考虑到翻译的实时性，以及原来的prompt写的并不是很好，所以我把翻译功能抽离出来，做成了一个独立的 CLI 程序方便自己使用。
 
-欢迎大家来提更多的few shot prompt和词汇表更新。
+欢迎大家来提更多的few shot prompt和词汇表更新，很多东西必须打了才知道原来不支持（比如刚发现吃兵这个词不在词汇表里）。
 
 程序流程：
 1. 监听全局热键
@@ -13,10 +13,7 @@
 4. 调用本地 Ollama 的 POST 接口翻译
 5. 将译文粘贴回输入框（并发送）
 
-<video controls width="640" height="360">
-  <source src="./example.mp4" type="video/mp4">
-  你的浏览器不支持视频标签。
-</video>
+![example](example.gif)
 
 ## 运行
 
