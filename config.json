@@ -19,7 +19,7 @@
     "host": "10.244.0.2",
     "port": 11434,
     "endpoint": "/api/generate",
-    "model": "qwen3.5:4b",
+    "model": "gemma4:e4b",
     "timeout": 30,
     "think": false,
     "options": {
