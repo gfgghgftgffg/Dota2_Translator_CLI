@@ -15,47 +15,17 @@
 
 ![example](example.gif)
 
+## 更新
+
+- 2026-04-22：新增了对llamacpp的支持（因为我想提速），配置文件里可以选择使用ollama还是llamacpp了。（但是目前有bug，尤其是对qwen这种能开关思考的模型，完全没做适配，有需求的自行适配或者找我merge吧，源代码给了一个qwen3.6适配的例子。而且很奇怪非ollama的gemma4-e4b似乎是能力不大行，有时候不按prompt要求来生成，反正目前用起来感觉没ollama省心） 感觉还是切回ollama那个gemma4模型比较好。
+
+
+
 ## 运行
 
 1.conda配置一下
 
-2.新建一个config.json,需要的自行修改
-```
-{
-  "hotkeys": {
-    "trigger": "f12",
-    "toggle": "ctrl+alt+f12"
-  },
-  "translation": {
-    "cooldown": 0.2,
-    "source_lang": "zh-CN",
-    "target_lang": "en",
-    "mode": 1
-  },
-  "window_filter": {
-    "enabled": false,
-    "title_keywords": [
-      "dota 2"
-    ]
-  },
-  "ollama": {
-    "host": "10.244.0.2",
-    "port": 11434,
-    "endpoint": "/api/generate",
-    "model": "qwen3.5:4b",
-    "timeout": 30,
-    "think": false,
-    "options": {
-      "temperature": 0.8
-    }
-  },
-  "prompt": {
-    "file": "prompts/zh_to_en_prompt.txt",
-    "user_text_placeholder": "{{text}}"
-  }
-}
-
-```
+2.修改config.json
 
 3. python src\dota2_translator.py
 

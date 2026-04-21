@@ -29,5 +29,22 @@
   "prompt": {
     "file": "prompts/zh_to_en_prompt.txt",
     "user_text_placeholder": "{{text}}"
+  },
+  "backend": {
+    "provider": "llamacpp"
+  },
+  "llamacpp": {
+    "host": "127.0.0.1",
+    "port": 8080,
+    "endpoint": "/completion",
+    "api_format": "completion",
+    "model": "",
+    "timeout": 30,
+    "think": false,
+    "headers": {},
+    "options": {
+      "temperature": 0.8,
+      "n_predict": 128
+    }
   }
 }

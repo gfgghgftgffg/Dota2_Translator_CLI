@@ -36,6 +36,9 @@ EN_TO_ZH = _glossary_module.EN_TO_ZH
 
 class Config:
     DEFAULT_CONFIG = {
+        "backend": {
+            "provider": "ollama",
+        },
         "hotkeys": {
             "trigger": "f6",
             "toggle": "ctrl+alt+t",
@@ -59,6 +62,20 @@ class Config:
             "think": False,
             "options": {
                 "temperature": 0.1,
+            },
+        },
+        "llamacpp": {
+            "host": "127.0.0.1",
+            "port": 8080,
+            "endpoint": "/completion",
+            "api_format": "completion",
+            "model": "",
+            "timeout": 30,
+            "think": False,
+            "headers": {},
+            "options": {
+                "temperature": 0.8,
+                "n_predict": 128,
             },
         },
         "prompt": {
@@ -139,23 +156,29 @@ class TranslationEngine:
 
     def __init__(
         self,
-        ollama_url: str,
+        backend_url: str,
         model: str,
         timeout: float,
         think: bool,
         request_options: Dict[str, object],
         prompt_template: PromptTemplate,
         mode: int = 1,
+        provider: str = "ollama",
+        headers: Dict[str, str] | None = None,
+        api_format: str = "completion",
     ):
         self.cache: Dict[str, str] = {}
         self.session = requests.Session()
         self.mode = mode
-        self.ollama_url = ollama_url
+        self.backend_url = backend_url
         self.model = model
         self.timeout = timeout
         self.think = think
         self.request_options = request_options
         self.prompt_template = prompt_template
+        self.provider = provider.lower()
+        self.headers = headers or {}
+        self.api_format = api_format.lower()
         self.terms = ZH_TO_EN if mode == 1 else EN_TO_ZH
         self._sorted_terms = sorted(self.terms.keys(), key=len, reverse=True)
         self._tag_pattern = re.compile(
@@ -226,6 +249,33 @@ class TranslationEngine:
         text = re.sub(r"\bfog\b", "smoke", text, flags=re.IGNORECASE)
         return text
 
+    def _extract_response_text(self, data: Dict[str, object], provider_name: str) -> str:
+        if isinstance(data.get("response"), str):
+            return data["response"].strip()
+
+        if isinstance(data.get("content"), str):
+            return data["content"].strip()
+
+        if isinstance(data.get("completion"), str):
+            return data["completion"].strip()
+
+        message = data.get("message")
+        if isinstance(message, dict) and isinstance(message.get("content"), str):
+            return message["content"].strip()
+
+        choices = data.get("choices")
+        if isinstance(choices, list) and choices:
+            first = choices[0]
+            if isinstance(first, dict):
+                if isinstance(first.get("text"), str):
+                    return first["text"].strip()
+
+                choice_message = first.get("message")
+                if isinstance(choice_message, dict) and isinstance(choice_message.get("content"), str):
+                    return choice_message["content"].strip()
+
+        raise ValueError(f"Unsupported {provider_name} response format.")
+
     def _call_ollama(self, text: str) -> str:
         payload = {
             "model": self.model,
@@ -237,22 +287,54 @@ class TranslationEngine:
             payload["options"] = self.request_options
 
         response = self.session.post(
-            self.ollama_url,
+            self.backend_url,
             json=payload,
             timeout=self.timeout,
         )
         response.raise_for_status()
-        data = response.json()
+        return self._extract_response_text(response.json(), "Ollama")
 
-        if isinstance(data, dict):
-            if isinstance(data.get("response"), str):
-                return data["response"].strip()
+    def _call_llamacpp(self, text: str) -> str:
+        rendered_prompt = self.prompt_template.render(text)
+        if self.api_format == "chat_completions":
+            payload = {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": rendered_prompt,
+                    }
+                ],
+                "stream": False,
+                "think": self.think,
+            }
+        else:
+            payload = {
+                "prompt": rendered_prompt,
+                "stream": False,
+                "think": self.think,
+            }
 
-            message = data.get("message")
-            if isinstance(message, dict) and isinstance(message.get("content"), str):
-                return message["content"].strip()
+        if self.model:
+            payload["model"] = self.model
 
-        raise ValueError("Unsupported Ollama response format.")
+        if not self.think and "qwen3.6" in self.model.lower():
+            payload["chat_template_kwargs"] = {"enable_thinking": False}
+
+        payload.update(self.request_options)
+
+        response = self.session.post(
+            self.backend_url,
+            json=payload,
+            headers=self.headers,
+            timeout=self.timeout,
+        )
+        response.raise_for_status()
+        return self._extract_response_text(response.json(), "llama.cpp")
+
+    def _call_backend(self, text: str) -> str:
+        if self.provider == "llamacpp":
+            return self._call_llamacpp(text)
+        return self._call_ollama(text)
 
     def translate(self, text: str) -> str:
         if not text.strip():
@@ -270,7 +352,7 @@ class TranslationEngine:
 
         protected_text = self.protect_existing_english(text)
         text_with_protected_terms = self.replace_terms(protected_text)
-        translated = self._call_ollama(text_with_protected_terms)
+        translated = self._call_backend(text_with_protected_terms)
         translated = self.restore_protected_terms(translated)
 
         if self.mode == 1:
@@ -294,19 +376,25 @@ class HotkeyTranslatorCLI:
         prompt_placeholder = self.config.get("prompt", "user_text_placeholder", default="{{text}}")
         prompt_template = PromptTemplate(prompt_file, prompt_placeholder)
 
-        host = self.config.get("ollama", "host")
-        port = self.config.get("ollama", "port")
-        endpoint = self.config.get("ollama", "endpoint")
-        ollama_url = self._build_ollama_url(host, port, endpoint)
+        backend_provider = str(self.config.get("backend", "provider", default="ollama")).lower()
+        backend_section = "llamacpp" if backend_provider == "llamacpp" else "ollama"
+
+        host = self.config.get(backend_section, "host")
+        port = self.config.get(backend_section, "port")
+        endpoint = self.config.get(backend_section, "endpoint")
+        backend_url = self._build_ollama_url(host, port, endpoint)
 
         self.engine = TranslationEngine(
-            ollama_url=ollama_url,
-            model=self.config.get("ollama", "model"),
-            timeout=float(self.config.get("ollama", "timeout", default=30)),
-            think=bool(self.config.get("ollama", "think", default=False)),
-            request_options=self.config.get("ollama", "options", default={}) or {},
+            backend_url=backend_url,
+            model=self.config.get(backend_section, "model", default=""),
+            timeout=float(self.config.get(backend_section, "timeout", default=30)),
+            think=bool(self.config.get(backend_section, "think", default=False)),
+            request_options=self.config.get(backend_section, "options", default={}) or {},
             prompt_template=prompt_template,
             mode=int(self.config.get("translation", "mode", default=1)),
+            provider=backend_provider,
+            headers=self.config.get(backend_section, "headers", default={}) or {},
+            api_format=self.config.get(backend_section, "api_format", default="completion"),
         )
 
     def _build_ollama_url(self, host: str, port: int, endpoint: str) -> str:
@@ -407,13 +495,17 @@ class HotkeyTranslatorCLI:
         trigger_key = self.config.get("hotkeys", "trigger")
         toggle_hotkey = self.config.get("hotkeys", "toggle")
 
+        backend_provider = str(self.config.get("backend", "provider", default="ollama")).lower()
+        backend_section = "llamacpp" if backend_provider == "llamacpp" else "ollama"
+
         self.log("CLI translator started.")
         self.log(f"Config file: {self.config.path}")
         self.log(f"Trigger key: {trigger_key}")
         self.log(f"Toggle hotkey: {toggle_hotkey}")
-        self.log(f"Ollama model: {self.config.get('ollama', 'model')}")
+        self.log(f"Backend provider: {backend_provider}")
+        self.log(f"Backend model: {self.config.get(backend_section, 'model', default='') or '(not required)'}")
         self.log(
-            f"Ollama endpoint: {self._build_ollama_url(self.config.get('ollama', 'host'), self.config.get('ollama', 'port'), self.config.get('ollama', 'endpoint'))}"
+            f"Backend endpoint: {self._build_ollama_url(self.config.get(backend_section, 'host'), self.config.get(backend_section, 'port'), self.config.get(backend_section, 'endpoint'))}"
         )
         self.log(f"Window filter enabled: {self.config.get('window_filter', 'enabled', default=False)}")
         self.log("Press Ctrl+C to exit.")
