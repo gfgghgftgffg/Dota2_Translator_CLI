@@ -1,0 +1,56 @@
+{
+  "hotkeys": {
+    "trigger": "f12",
+    "toggle": "ctrl+alt+f12"
+  },
+  "translation": {
+    "cooldown": 0.2,
+    "source_lang": "zh-CN",
+    "target_lang": "en",
+    "mode": 1
+  },
+  "window_filter": {
+    "enabled": false,
+    "title_keywords": [
+      "dota 2"
+    ]
+  },
+  "backend": {
+    "provider": "llamacpp"
+  },
+  "ollama": {
+    "host": "A.B.C.D",
+    "port": 11434,
+    "endpoint": "/api/generate",
+    "model": "gemma4:e4b",
+    "timeout": 30,
+    "think": false,
+    "options": {
+      "temperature": 0.8
+    }
+  },
+  "llamacpp": {
+    "host": "https://YOUR-DOMAIN.example.com",
+    "port": 11434,
+    "endpoint": "/v1/chat/completions",
+    "api_format": "chat_completions",
+    "model": "",
+    "timeout": 60,
+    "verify_ssl": false,
+    "think": false,
+    "headers": {
+      "Authorization": "Bearer YOUR_API_KEY"
+    },
+    "options": {
+      "temperature": 0.1,
+      "max_tokens": 1024,
+      "chat_template_kwargs": {
+        "enable_thinking": false
+      }
+    }
+  },
+  "prompt": {
+    "file": "prompts/zh_to_en_prompt.txt",
+    "user_text_placeholder": "{{text}}"
+  }
+}

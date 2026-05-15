@@ -44,6 +44,7 @@ logs/
 
 # Config files (if containing sensitive data)
 config.py
+config.json
 .env
 .env.local
 *.secret
