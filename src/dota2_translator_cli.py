@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 Command-line Dota 2 translator with global hotkeys and Ollama backend.
 """
@@ -19,7 +19,14 @@ import requests
 
 def load_glossary_module():
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    glossary_path = os.path.join(current_dir, "词汇表.py")
+    candidates = [
+        os.path.join(current_dir, name)
+        for name in os.listdir(current_dir)
+        if name.endswith(".py") and name != os.path.basename(__file__)
+    ]
+    if not candidates:
+        raise RuntimeError(f"Failed to find glossary module in: {current_dir}")
+    glossary_path = candidates[0]
     spec = importlib.util.spec_from_file_location("dota2_glossary", glossary_path)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Failed to load glossary module: {glossary_path}")
@@ -166,6 +173,7 @@ class TranslationEngine:
         provider: str = "ollama",
         headers: Dict[str, str] | None = None,
         api_format: str = "completion",
+        verify_ssl: bool | str = True,
     ):
         self.cache: Dict[str, str] = {}
         self.session = requests.Session()
@@ -179,6 +187,7 @@ class TranslationEngine:
         self.provider = provider.lower()
         self.headers = headers or {}
         self.api_format = api_format.lower()
+        self.verify_ssl = verify_ssl
         self.terms = ZH_TO_EN if mode == 1 else EN_TO_ZH
         self._sorted_terms = sorted(self.terms.keys(), key=len, reverse=True)
         self._tag_pattern = re.compile(
@@ -290,6 +299,7 @@ class TranslationEngine:
             self.backend_url,
             json=payload,
             timeout=self.timeout,
+            verify=self.verify_ssl,
         )
         response.raise_for_status()
         return self._extract_response_text(response.json(), "Ollama")
@@ -327,6 +337,7 @@ class TranslationEngine:
             json=payload,
             headers=self.headers,
             timeout=self.timeout,
+            verify=self.verify_ssl,
         )
         response.raise_for_status()
         return self._extract_response_text(response.json(), "llama.cpp")
@@ -395,11 +406,26 @@ class HotkeyTranslatorCLI:
             provider=backend_provider,
             headers=self.config.get(backend_section, "headers", default={}) or {},
             api_format=self.config.get(backend_section, "api_format", default="completion"),
+            verify_ssl=self._resolve_verify_ssl(backend_section),
         )
 
     def _build_ollama_url(self, host: str, port: int, endpoint: str) -> str:
         endpoint = endpoint if endpoint.startswith("/") else f"/{endpoint}"
+        host = str(host).rstrip("/")
+        if host.startswith(("http://", "https://")):
+            return f"{host}:{port}{endpoint}"
         return f"http://{host}:{port}{endpoint}"
+
+    def _resolve_verify_ssl(self, backend_section: str) -> bool | str:
+        value = self.config.get(backend_section, "verify_ssl", default=True)
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"false", "0", "no", "off"}:
+                return False
+            if normalized in {"true", "1", "yes", "on"}:
+                return True
+            return self.config.resolve_path(value)
+        return bool(value)
 
     def _load_runtime_dependencies(self) -> None:
         try:
